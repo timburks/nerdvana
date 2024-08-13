@@ -6,11 +6,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
-	"google.golang.org/appengine/v2/user"
+	"github.com/timburks/nerdvana/pkg/user"
+	official "google.golang.org/appengine/v2/user"
 )
 
 func main() {
+	http.HandleFunc("/login", loginHandler)
 	http.HandleFunc("/", indexHandler)
 
 	port := os.Getenv("PORT")
@@ -25,27 +28,46 @@ func main() {
 	}
 }
 
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/", 303)
+}
+
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	page := &Page{}
 	page.Title = "Hello, world!"
 	page.Header = r.Header
-	page.User = fmt.Sprintf("%+v", user.Current(r.Context()))
-	page.LoginURL, err = user.LoginURL(r.Context(), r.URL.Path)
+	page.OfficialUser = fmt.Sprintf("%+v", official.Current(r.Context()))
+	page.OfficialLoginURL, err = official.LoginURL(r.Context(), r.URL.Path)
 	if err != nil {
-		page.LoginURL = err.Error()
+		page.OfficialLoginURL = err.Error()
 		log.Printf("LoginURL error: %s", err)
 	}
-	page.LoginURLFederated, err = user.LoginURLFederated(r.Context(), r.URL.Path, "gmail.com")
+	page.OfficialLoginURLFederated, err = official.LoginURLFederated(r.Context(), r.URL.Path, "gmail.com")
 	if err != nil {
-		page.LoginURLFederated = err.Error()
+		page.OfficialLoginURLFederated = err.Error()
 		log.Printf("LoginURLFederated error: %s", err)
 	}
-	page.LogoutURL, err = user.LogoutURL(r.Context(), "http://"+r.Host+"/")
+	page.OfficialLogoutURL, err = official.LogoutURL(r.Context(), "http://"+r.Host+"/")
 	if err != nil {
-		page.LogoutURL = err.Error()
+		page.OfficialLogoutURL = err.Error()
 		log.Printf("LogoutURL error: %s", err)
+	}
+
+	hackuser := user.Current(r)
+
+	page.HackUser = fmt.Sprintf("%+v", hackuser)
+	page.HackLoginURL = user.LoginURL()
+	page.HackLogoutURL = user.LogoutURL()
+	if hackuser != nil {
+		page.Title = "Hello, " + strings.Title(hackuser.Nickname)
+		page.Prompt = "sign out"
+		page.PromptURL = user.LogoutURL()
+	} else {
+		page.Title = "Hello, world"
+		page.Prompt = "sign in"
+		page.PromptURL = user.LoginURL()
 	}
 
 	t, err := template.New("page").Parse(tmpl)
@@ -60,26 +82,40 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type Page struct {
-	Title             string
-	User              string
-	LoginURL          string
-	LoginURLFederated string
-	LogoutURL         string
-	Header            map[string][]string
+	Title                     string
+	OfficialUser              string
+	OfficialLoginURL          string
+	OfficialLoginURLFederated string
+	OfficialLogoutURL         string
+	HackUser                  string
+	HackLoginURL              string
+	HackLogoutURL             string
+	Prompt                    string
+	PromptURL                 string
+	Header                    map[string][]string
 }
 
 const tmpl = `
 <html>
 <body>
 <h1>{{ .Title }}</h1>
+<h2><a href="{{ .PromptURL }}">{{ .Prompt }}</a></h2>
 
 <hr>
 
 <table>
-<tr><td>User</td><td>{{ .User }}</td></tr>
-<tr><td>LoginURL</td><td>{{ .LoginURL }}</td></tr>
-<tr><td>LoginURLFederated</td><td>{{ .LoginURLFederated }}</td></tr>
-<tr><td>LogoutURL</td><td>{{ .LogoutURL }}</td></tr>
+<tr><td>User</td><td>{{ .OfficialUser }}</td></tr>
+<tr><td>LoginURL</td><td>{{ .OfficialLoginURL }}</td></tr>
+<tr><td>LoginURLFederated</td><td>{{ .OfficialLoginURLFederated }}</td></tr>
+<tr><td>LogoutURL</td><td>{{ .OfficialLogoutURL }}</td></tr>
+</table>
+
+<hr>
+
+<table>
+<tr><td>User</td><td>{{ .HackUser }}</td></tr>
+<tr><td>LoginURL</td><td>{{ .HackLoginURL }}</td></tr>
+<tr><td>LogoutURL</td><td>{{ .HackLogoutURL }}</td></tr>
 </table>
 
 <hr>
@@ -89,7 +125,6 @@ const tmpl = `
 <tr><td>{{ $k }}</td><td>{{ $v }}</td></tr>
 {{ end }}
 </table>
-
 
 </body>
 </html>
