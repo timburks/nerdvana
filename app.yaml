@@ -1,0 +1,13 @@
+runtime: go122
+app_engine_apis: true
+
+handlers:
+- url: /
+  login: optional
+  script: auto
+- url: /public
+  login: none
+  script: auto
+- url: /private
+  login: required
+  script: auto
