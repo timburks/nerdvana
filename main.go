@@ -26,10 +26,6 @@ func main() {
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
 	var err error
 
 	page := &Page{}
